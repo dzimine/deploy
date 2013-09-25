@@ -26,43 +26,9 @@ unzip to $CAPACITY directory.
 	
 
 ## Install prerequisites
-Scripted pre-requisit installation is in `$CAPACITY/install-prereqs.sh`. Details:
+Scripted pre-requisit installation is in [`deploy/install-prereqs.sh`](https://github.com/dzimine/deploy/blob/master/install-prereqs.sh). 
+Run the script, or install manually using the script as a check-list.
 
-### node
-	sudo apt-get update
-	sudo apt-get install python-software-properties python g++ make
-	sudo add-apt-repository ppa:chris-lea/node.js
-	sudo apt-get update
-	sudo apt-get install -y nodejs
-	# Check
-	node --versoin
-	> v0.10.18
-	npm --version 
-	> 1.3.8
-
-### java
-	sudo apt-get install python-software-properties python g++ make
-	sudo add-apt-repository ppa:webupd8team/java
-	sudo apt-get update
-	# state that you accepted the license 
-	echo debconf shared/accepted-oracle-license-v1-1 select true | sudo debconf-set-selections
-	echo debconf shared/accepted-oracle-license-v1-1 seen true | sudo debconf-set-selections
-	sudo apt-get install oracle-java7-installer
-	# Check
-	java -version
-	> java version "1.7.0_40"
-
-### Install libvirt, libxml mysql client, curl, python
-	sudo apt-get install -y libvirt-bin python-libvirt
-	sudo apt-get install -y libxml2-dev libxslt1-dev
-	sudo apt-get install -y libmysqlclient-dev
-	sudo apt-get install -y curl
-	sudo apt-get install -y python-dev python-pip python-virtualenv
-
-### Screen
-This is temporary, while developing (will daemonize the processes later).
-	
-	sudo apt-get install screen
 
 ## Configure OpenStack
 
@@ -84,9 +50,23 @@ On each compute node:
 * configure the 'theuser', with ssh access and a member of libvirt group
 	$ sudo usermod -G libvirtd -a theuser
 * create and deploy SSH public keys, for passwordless access to compute nodes ([sample here](https://github.com/dzimine/Couch_to_OpenStack/blob/dev/with-ssh/ssh-setup.sh) )
-* Test  that it all works. From client machine, fire: 
+	1. On the client host (hosting the StackStorm app): create keypair and register private key for ssh
+			
+			ssh-keygen -t rsa -N "libvirt access" -P "" -f id_rsa_libvirt
+			cp id_rsa_libvirt ~/.ssh/
+			cp id_rsa_libvirt.pub ~/.ssh/ #one day you'll want to delete it and need pub for this
+			# May be needed to fix fix 
+			# the "Could not open a connection to your authentication agent."
+			eval $(ssh-agent)
+			# Add key to ssh-agent
+			ssh-add ~/.ssh/id_rsa_libvirt
+	2. On target server(s) (compute nodes): deploy public key for our ssh user `theuser`
+	
+			sudo -u theuser cat id_rsa_libvirt.pub >>/home/theuser/.ssh/authorized_keys
+
+* Test  that it works. From client machine, fire: 
  
-		virsh -c  qemu+ssh://theuser@172.16.80.201/system?socket=/var/run/libvirt/libvirt-sock list
+			virsh -c  qemu+ssh://theuser@172.16.80.201/system?socket=/var/run/libvirt/libvirt-sock list
 It shall list instances running on the node. 
 
 ## Configure Capacity dashboard
@@ -98,15 +78,10 @@ It shall list instances running on the node.
 This must end with: `"Successfully installed configparser eventlet kombu librabbitmq pysolr lxml httplib2 sqlalchemy mysql-python nose mock greenlet anyjson amqp requests
 Cleaning up…"`
 
-1. Install node dependencies
-		
-		cd osh-ui
-		npm install
-This must end without errors. Warnings are OK. 
-
-1. Edit the front-end config file, update connection info and credentials to nova DB.
+1. Edit the front-end config file, update connection info and credentials to OpenStack MySQL DB.
 
 		vi osh-ui/config/production.yml
+This file also contains default thresholds, and the web client port (default 9000)
 	
 1. Edit the backend config file, update connection info and credentials for nova DB, and RabbitMQ server (typically, on controller node)
 
